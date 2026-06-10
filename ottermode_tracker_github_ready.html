@@ -1,0 +1,1403 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ottermode Physique Companion</title>
+    <!-- Tailwind CSS for premium responsive styling -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Lucide Icons for state indicators and UI controls -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght=300;400;500;600;700;800&display=swap');
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+        /* Glassmorphism scrollbars */
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #0f172a;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #334155;
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #475569;
+        }
+        /* Custom smooth horizontal swipe style for mobile calendar ribbon */
+        .no-scrollbar::-webkit-scrollbar {
+            display: none;
+        }
+        .no-scrollbar {
+            -ms-overflow-style: none;  /* IE and Edge */
+            scrollbar-width: none;  /* Firefox */
+        }
+    </style>
+</head>
+<body class="bg-slate-950 text-slate-100 min-h-screen pb-16 selection:bg-cyan-500 selection:text-slate-950">
+
+    <!-- Toast Notification Overlay -->
+    <div id="toast-container" class="fixed bottom-5 right-5 z-50 flex flex-col gap-2 max-w-sm w-full pointer-events-none"></div>
+
+    <!-- Custom Confirmation Modal (Replaces unsafe window.confirm) -->
+    <div id="confirm-modal" class="fixed inset-0 bg-slate-950/80 backdrop-blur-sm hidden items-center justify-center z-50 p-4">
+        <div class="bg-slate-900 border border-slate-800 rounded-2xl max-w-sm w-full p-6 space-y-4 shadow-2xl transform scale-95 transition-transform duration-200" id="confirm-box">
+            <div class="flex items-center gap-3 text-rose-400">
+                <i data-lucide="alert-triangle" class="w-6 h-6"></i>
+                <h4 id="confirm-title" class="font-bold text-lg text-slate-100">Are you sure?</h4>
+            </div>
+            <p id="confirm-msg" class="text-sm text-slate-400 leading-relaxed"></p>
+            <div class="flex justify-end gap-3 pt-2">
+                <button id="confirm-cancel-btn" class="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-sm transition font-medium">Cancel</button>
+                <button id="confirm-ok-btn" class="px-4 py-2 bg-rose-500 hover:bg-rose-600 text-slate-100 rounded-xl text-sm transition font-semibold">Confirm Action</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Header Navigation -->
+    <header class="border-b border-slate-900 bg-slate-950/80 backdrop-blur sticky top-0 z-40">
+        <div class="max-w-4xl mx-auto px-4 py-3 flex flex-col sm:flex-row items-center justify-between gap-3">
+            <div class="flex items-center gap-3">
+                <div class="p-2 bg-gradient-to-tr from-cyan-500 to-emerald-500 rounded-xl shadow-lg shadow-cyan-500/10">
+                    <i data-lucide="dumbbell" class="w-5 h-5 text-slate-950"></i>
+                </div>
+                <div>
+                    <div class="flex items-center gap-2">
+                        <h1 class="font-extrabold text-lg tracking-tight bg-gradient-to-r from-cyan-400 to-emerald-400 bg-clip-text text-transparent">OTTERMODE</h1>
+                        <span class="bg-cyan-500/10 text-cyan-400 border border-cyan-500/20 text-[10px] uppercase font-bold px-1.5 py-0.5 rounded-full">Day-by-Day Tracker</span>
+                    </div>
+                    <p class="text-[10px] text-slate-500">Continuous Physique & Nutrition Logging</p>
+                </div>
+            </div>
+            <!-- Dynamic Current Selection Banner -->
+            <div class="flex items-center gap-2 bg-slate-900 border border-slate-800/80 px-3 py-1.5 rounded-xl text-xs">
+                <i data-lucide="calendar" class="w-3.5 h-3.5 text-cyan-400"></i>
+                <span class="text-slate-400">Viewing Day:</span>
+                <strong id="active-day-display" class="text-emerald-400 font-mono">Today</strong>
+                <input type="date" id="custom-date-picker" onchange="selectCustomDate(this.value)" class="bg-slate-800 border border-slate-700 text-slate-100 rounded px-1.5 py-0.5 font-mono text-[10px] focus:outline-none focus:ring-1 focus:ring-cyan-500 cursor-pointer">
+            </div>
+        </div>
+    </header>
+
+    <!-- Interactive Date Selection Ribbon (Quick Swipe Navigation) -->
+    <div class="bg-slate-900/40 border-b border-slate-900/60 py-2.5">
+        <div class="max-w-4xl mx-auto px-4">
+            <div class="flex items-center justify-between gap-2 mb-2">
+                <span class="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Quick Select Day</span>
+                <button onclick="jumpToToday()" class="text-[10px] bg-slate-800 hover:bg-slate-700 text-slate-300 font-medium px-2 py-0.5 rounded-lg border border-slate-700/60 transition">
+                    Jump to Today
+                </button>
+            </div>
+            <div class="flex gap-2 overflow-x-auto no-scrollbar pb-1" id="date-ribbon">
+                <!-- Date capsules will be injected dynamically by JavaScript -->
+            </div>
+        </div>
+    </div>
+
+    <main class="max-w-4xl mx-auto px-4 mt-5">
+        
+        <!-- Main Tab Navigation -->
+    <div class="grid grid-cols-4 gap-1.5 mb-6 bg-slate-900 p-1.5 rounded-2xl border border-slate-800">
+        <button onclick="switchTab('tracker')" id="btn-tab-tracker" class="tab-btn flex flex-col items-center justify-center gap-1 py-2 px-1 rounded-xl text-xs font-bold transition-all duration-200">
+            <i data-lucide="check-square" class="w-4 h-4"></i>
+            <span>Workout</span>
+        </button>
+        <button onclick="switchTab('schedule')" id="btn-tab-schedule" class="tab-btn flex flex-col items-center justify-center gap-1 py-2 px-1 rounded-xl text-xs font-bold transition-all duration-200">
+            <i data-lucide="calendar" class="w-4 h-4"></i>
+            <span>Schedule</span>
+        </button>
+        <button onclick="switchTab('meals')" id="btn-tab-meals" class="tab-btn flex flex-col items-center justify-center gap-1 py-2 px-1 rounded-xl text-xs font-bold transition-all duration-200">
+            <i data-lucide="utensils" class="w-4 h-4"></i>
+            <span>Diet Logs</span>
+        </button>
+        <button onclick="switchTab('history')" id="btn-tab-history" class="tab-btn flex flex-col items-center justify-center gap-1 py-2 px-1 rounded-xl text-xs font-bold transition-all duration-200">
+            <i data-lucide="calendar-range" class="w-4 h-4"></i>
+            <span>Monthly Log</span>
+        </button>
+    </div>
+
+    <!-- ================= TRACKER TAB ================= -->
+    <section id="tab-tracker" class="tab-content space-y-5">
+        <!-- Active Workout Configuration & Target of the day -->
+        <div class="bg-slate-900 border border-slate-800 rounded-2xl p-5">
+            <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-4">
+                <div>
+                    <h2 class="text-base font-bold flex items-center gap-2">
+                        <i data-lucide="activity" class="w-4.5 h-4.5 text-cyan-400"></i> Actionable Exercises for Selected Day
+                    </h2>
+                    <p class="text-xs text-slate-400 mt-1">
+                        Your general template recommends: <strong id="scheduled-activity-badge" class="text-cyan-400">Rest/Study</strong> on this day of the week.
+                    </p>
+                </div>
+                <div class="flex items-center gap-2 bg-slate-950 p-1.5 rounded-xl border border-slate-800 w-full md:w-auto">
+                    <span class="text-[10px] font-bold text-slate-500 uppercase px-2">Override Session:</span>
+                    <select id="workout-select" onchange="changeActiveSession(this.value)" class="bg-slate-900 border border-slate-800 rounded-lg py-1 px-2.5 text-xs text-slate-100 focus:outline-none focus:ring-1 focus:ring-cyan-500 font-semibold cursor-pointer flex-1">
+                        <option value="none">Rest / Study (No session)</option>
+                        <option value="A">Workout A: Push & Legs (Shoulders)</option>
+                        <option value="B">Workout B: Pull & Core (V-Taper)</option>
+                        <option value="Cardio">Cardio: LISS Running/Treadmill</option>
+                    </select>
+                </div>
+            </div>
+
+            <div id="workout-meta-controls" class="grid md:grid-cols-2 gap-4 pt-3 border-t border-slate-800/60 hidden">
+                <div>
+                    <label class="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1.5">Configure Backpack Overload (kg)</label>
+                    <div class="flex items-center gap-2">
+                        <button onclick="adjustLoad(-1)" class="bg-slate-950 hover:bg-slate-800 border border-slate-800 w-10 py-1.5 rounded-lg text-xs font-extrabold flex items-center justify-center transition select-none">-</button>
+                        <input type="number" id="backpack-load" value="10" min="0" oninput="updateLoadLabel()" class="w-full bg-slate-950 border border-slate-800 rounded-lg py-1 px-3 text-center font-mono font-bold text-slate-100 text-xs focus:ring-1 focus:ring-cyan-500">
+                        <button onclick="adjustLoad(1)" class="bg-slate-950 hover:bg-slate-800 border border-slate-800 w-10 py-1.5 rounded-lg text-xs font-extrabold flex items-center justify-center transition select-none">+</button>
+                    </div>
+                </div>
+                <div class="flex flex-col justify-end">
+                    <div class="bg-slate-950 px-3 py-2.5 rounded-lg border border-slate-800 text-[11px] text-slate-400 flex justify-between items-center">
+                        <span>Computed Backpack Weight:</span>
+                        <span class="text-cyan-400 font-black" id="load-label">10 kg (~8 books)</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Dynamic Session Elements -->
+        <div id="active-session-block" class="space-y-3">
+            <!-- Programmatically generated depending on selection (none, cardio, A, B) -->
+        </div>
+
+        <!-- Interactive Inter-Set Rest Timer Widget -->
+        <div class="bg-slate-900 border border-slate-800 rounded-2xl p-5 flex flex-col md:flex-row items-center justify-between gap-4">
+            <div class="flex items-center gap-3">
+                <div class="p-3 bg-cyan-500/10 text-cyan-400 rounded-xl border border-cyan-500/15">
+                    <i data-lucide="timer" class="w-6 h-6"></i>
+                </div>
+                <div>
+                    <h4 class="text-xs font-bold text-slate-200">Inter-Set Rest Timer</h4>
+                    <p class="text-[10px] text-slate-400 leading-relaxed mt-0.5">Optimal pause: <strong>90 seconds</strong> (maximizes muscular recovery without losing workout flow).</p>
+                </div>
+            </div>
+            <div class="flex items-center gap-3.5 bg-slate-950 p-2 rounded-xl border border-slate-800/80 w-full md:w-auto justify-between md:justify-start">
+                <div class="text-lg font-black font-mono text-cyan-400 pl-2" id="timer-display">01:30</div>
+                <div class="flex gap-1.5">
+                    <button id="timer-toggle-btn" onclick="toggleTimer()" class="bg-cyan-500 hover:bg-cyan-600 text-slate-950 text-xs font-bold px-3 py-1.5 rounded-lg transition">Start</button>
+                    <button onclick="resetTimer()" class="bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-bold px-3 py-1.5 rounded-lg transition">Reset</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Interactive Daily Notes Section -->
+        <div class="bg-slate-900 border border-slate-800 rounded-2xl p-5">
+            <div class="flex items-center gap-2 mb-3">
+                <div class="p-1.5 bg-cyan-500/10 text-cyan-400 rounded-lg">
+                    <i data-lucide="book-open" class="w-4 h-4"></i>
+                </div>
+                <div>
+                    <h3 class="text-xs font-bold text-slate-100">Daily Training & Study Notes</h3>
+                    <p class="text-[10px] text-slate-400">Jot down how you felt, study achievements, or backpack balance modifications.</p>
+                </div>
+            </div>
+            <textarea id="daily-notes-input" oninput="saveDailyNotes(this.value)" placeholder="Add some notes about today... (e.g. 'Finished 3 chapters of chemistry, adjusted backpack to 12kg today and hit 12 reps on pushups comfortably!')" class="w-full h-20 bg-slate-950 border border-slate-800 rounded-xl p-3 text-xs text-slate-100 placeholder-slate-600 focus:outline-none focus:ring-1 focus:ring-cyan-500/70 resize-none transition duration-150"></textarea>
+        </div>
+
+        <!-- Prescription & Terminology Glossary Card -->
+        <div class="bg-slate-900 border border-slate-800 rounded-2xl p-5 mt-4">
+            <div class="flex items-center gap-2 mb-3">
+                <div class="p-1.5 bg-cyan-500/10 text-cyan-400 rounded-lg">
+                    <i data-lucide="help-circle" class="w-4 h-4"></i>
+                </div>
+                <div>
+                    <h3 class="text-sm font-bold text-slate-100">Workout Prescription Glossary</h3>
+                    <p class="text-[10px] text-slate-400">What these fitness concepts mean for your lifetime physique development.</p>
+                </div>
+            </div>
+            <div class="grid sm:grid-cols-2 lg:grid-cols-4 gap-3 text-xs">
+                <div class="bg-slate-950 p-3 rounded-xl border border-slate-850 space-y-1">
+                    <strong class="text-cyan-400 font-semibold block text-[11px]">Sets</strong>
+                    <p class="text-slate-400 text-[10px] leading-relaxed">The number of times you perform a specific exercise block with standard rest pauses in between.</p>
+                </div>
+                <div class="bg-slate-950 p-3 rounded-xl border border-slate-850 space-y-1">
+                    <strong class="text-cyan-400 font-semibold block text-[11px]">Reps (Repetitions)</strong>
+                    <p class="text-slate-400 text-[10px] leading-relaxed">The physical count of complete movements done inside a set without stopping (e.g., 10 squats in a row).</p>
+                </div>
+                <div class="bg-slate-950 p-3 rounded-xl border border-slate-850 space-y-1">
+                    <strong class="text-emerald-400 font-semibold block text-[11px]">To Failure</strong>
+                    <p class="text-slate-400 text-[10px] leading-relaxed">Lifting with perfect safety and control until your muscles physically cannot execute another full rep.</p>
+                </div>
+                <div class="bg-slate-950 p-3 rounded-xl border border-slate-850 space-y-1">
+                    <strong class="text-emerald-400 font-semibold block text-[11px]">Overload</strong>
+                    <p class="text-slate-400 text-[10px] leading-relaxed">Continuously challenging your body over months by adding heavier books or moving slower (increasing time under tension).</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- ================= SCHEDULE TAB ================= -->
+    <section id="tab-schedule" class="tab-content hidden space-y-5">
+        <div class="bg-slate-900 border border-slate-800 rounded-2xl p-5">
+            <div class="flex justify-between items-start mb-4">
+                <div>
+                    <h2 class="text-base font-bold">Your Ideal Weekly Rhythm Template</h2>
+                    <p class="text-xs text-slate-400 mt-1">This templates your weekly schedule. Whenever you view a specific date, the app looks up this rhythm to show what you scheduled to complete that day.</p>
+                </div>
+                <button onclick="resetSchedule()" class="text-[10px] text-rose-400 hover:text-rose-300 flex items-center gap-1 transition">
+                    <i data-lucide="rotate-ccw" class="w-3 h-3"></i> Reset Template
+                </button>
+            </div>
+
+            <div class="space-y-2.5" id="weekly-schedule-container">
+                <!-- Weekday capsules compiled dynamically -->
+            </div>
+        </div>
+
+        <div class="bg-gradient-to-r from-slate-900 to-slate-950 border border-slate-800 rounded-xl p-4 text-xs text-slate-300 space-y-2">
+            <h3 class="font-bold text-slate-100 flex items-center gap-1.5">
+                <i data-lucide="info" class="w-4 h-4 text-cyan-400"></i> Adaptability Guideline
+            </h3>
+            <p class="leading-relaxed">Life is dynamic. When tests, school, or fatigue hit, don't drop the habit—simply tap that individual date's Override Session and log "Rest/Study". The tracker respects real-world changes while keeping your long-term record perfectly accurate.</p>
+        </div>
+    </section>
+
+    <!-- ================= DIET TAB ================= -->
+    <section id="tab-meals" class="tab-content hidden space-y-5">
+        <!-- Meal Timing Checklist (Stored per selected date) -->
+        <div class="bg-slate-900 border border-slate-800 rounded-2xl p-5">
+            <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 mb-5">
+                <div class="flex items-center gap-3">
+                    <div class="p-2.5 bg-emerald-500/10 text-emerald-400 rounded-xl border border-emerald-500/20 shadow-md">
+                        <!-- Custom Minimalist Apple/Nutrition SVG Logo -->
+                        <svg class="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M12 2c0 .5-.2 1.3-.7 1.8S10.2 4.5 9.7 4.5" stroke-linecap="round"/>
+                            <path d="M12 5c-1.6 0-3-1-4.5-1-2.5 0-4.5 2.5-4.5 5.5 0 4.5 3.5 8.5 6.5 9.5 1 .3 2 .3 3 0 3-1 6.5-5 6.5-9.5 0-3-2-5.5-4.5-5.5-1.5 0-2.9 1-4.5 1z" stroke-linecap="round" fill="currentColor" fill-opacity="0.1"/>
+                        </svg>
+                    </div>
+                    <div>
+                        <h2 class="text-base font-bold flex items-center gap-2">
+                            Daily Nutrition & Staples Check
+                        </h2>
+                        <p class="text-xs text-slate-400 mt-0.5">Maintain consistent intake of eggs, chicken, and gut micro-staples.</p>
+                    </div>
+                </div>
+                <span id="diet-completion-percentage" class="text-xs bg-slate-950 px-2 py-0.5 rounded font-mono font-extrabold text-emerald-400">0% Done</span>
+            </div>
+
+            <div class="space-y-3" id="meals-container">
+                <!-- Dinamically generated meal card lists -->
+            </div>
+        </div>
+
+        <!-- Dual Segment Metrics -->
+        <div class="grid md:grid-cols-2 gap-5">
+            <!-- Active Water Tracker for Selected Date -->
+            <div class="bg-slate-900 border border-slate-800 rounded-2xl p-5 flex flex-col justify-between">
+                <div>
+                    <h3 class="font-bold text-sm mb-1.5 flex items-center gap-1.5">
+                        <i data-lucide="droplet" class="w-4.5 h-4.5 text-blue-400"></i> Hydration (3.0 Liters)
+                    </h3>
+                    <p class="text-[11px] text-slate-400 leading-relaxed mb-4">Each drop corresponds to 250ml. Fill all 12 to hit the target water balance.</p>
+                </div>
+                
+                <div class="bg-slate-950 p-3.5 rounded-xl border border-slate-800 flex items-center justify-between">
+                    <div>
+                        <span class="text-xl font-black text-blue-400 font-mono" id="water-display">0.00</span>
+                        <span class="text-xs text-slate-400"> / 3.00 Liters</span>
+                    </div>
+                    <div class="grid grid-cols-6 gap-1" id="water-glasses">
+                        <!-- Glasses loaded dynamically -->
+                    </div>
+                </div>
+            </div>
+
+            <!-- Custom Staples / Add-ons for Selected Date -->
+            <div class="bg-slate-900 border border-slate-800 rounded-2xl p-5 flex flex-col justify-between">
+                <div>
+                    <h3 class="font-bold text-sm mb-1.5 flex items-center gap-1.5">
+                        <i data-lucide="shield-check" class="w-4.5 h-4.5 text-emerald-400"></i> Gut Health & Staples
+                    </h3>
+                    <p class="text-[11px] text-slate-400 leading-relaxed mb-4">Essential micro-nutrients supporting gut-biome balance and metabolic performance.</p>
+                </div>
+                
+                <div class="space-y-2.5">
+                    <label class="flex items-start gap-3 p-2.5 bg-slate-950 rounded-xl border border-slate-800 cursor-pointer hover:border-slate-700 transition">
+                        <input type="checkbox" id="staple-veg" class="w-4 h-4 rounded border-slate-800 bg-slate-900 text-emerald-500 focus:ring-emerald-500 cursor-pointer mt-0.5" onchange="toggleStaple('veg')">
+                        <div>
+                            <strong class="text-xs block text-emerald-300">Added Green Vegetables</strong>
+                            <span class="text-[10px] text-slate-400">Broccoli, spinach, cabbage, or fresh salad today.</span>
+                        </div>
+                    </label>
+                    <label class="flex items-start gap-3 p-2.5 bg-slate-950 rounded-xl border border-slate-800 cursor-pointer hover:border-slate-700 transition">
+                        <input type="checkbox" id="staple-yogurt" class="w-4 h-4 rounded border-slate-800 bg-slate-900 text-cyan-500 focus:ring-cyan-500 cursor-pointer mt-0.5" onchange="toggleStaple('yogurt')">
+                        <div>
+                            <strong class="text-xs block text-cyan-300">Fermented Probiotic / Yogurt</strong>
+                            <span class="text-[10px] text-slate-400">Essential for gut digestion and robust immune support.</span>
+                        </div>
+                    </label>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- ================= MONTHLY HISTORY GRID TAB ================= -->
+    <section id="tab-history" class="tab-content hidden space-y-5">
+        <!-- Monthly Consistency Dashboard Calendar -->
+        <div class="bg-slate-900 border border-slate-800 rounded-2xl p-5">
+            <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 mb-4">
+                <div>
+                    <h2 class="text-base font-bold">Monthly Progression Grid</h2>
+                    <p class="text-xs text-slate-400 mt-1">Tap any block below to inspect, load, or retrospectively log details for that day.</p>
+                </div>
+                <!-- Calendar controls -->
+                <div class="flex items-center gap-2">
+                    <button onclick="shiftCalendarMonth(-1)" class="p-1 bg-slate-950 hover:bg-slate-800 rounded-lg border border-slate-800 transition">
+                        <i data-lucide="chevron-left" class="w-4 h-4"></i>
+                    </button>
+                    <span id="calendar-month-year" class="text-xs font-bold font-mono px-2 text-slate-300">June 2026</span>
+                    <button onclick="shiftCalendarMonth(1)" class="p-1 bg-slate-950 hover:bg-slate-800 rounded-lg border border-slate-800 transition">
+                        <i data-lucide="chevron-right" class="w-4 h-4"></i>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Color Codes Legend -->
+            <div class="flex flex-wrap gap-3 p-2 bg-slate-950 rounded-xl border border-slate-850 text-[10px] text-slate-400 mb-4 justify-between">
+                <span class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded bg-slate-800 block"></span> Untracked</span>
+                <span class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded bg-amber-500/20 border border-amber-500/40 block"></span> Rest / Study</span>
+                <span class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded bg-cyan-500 block"></span> Workout Done</span>
+                <span class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded bg-sky-500/60 block"></span> Cardio Done</span>
+                <span class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded border-2 border-emerald-500/50 block"></span> Diet Target Hit</span>
+            </div>
+
+            <!-- Main Calendar Grid -->
+            <div class="grid grid-cols-7 gap-1.5 text-center text-xs font-mono mb-2">
+                <span class="text-slate-500 font-bold text-[11px]">Mon</span>
+                <span class="text-slate-500 font-bold text-[11px]">Tue</span>
+                <span class="text-slate-500 font-bold text-[11px]">Wed</span>
+                <span class="text-slate-500 font-bold text-[11px]">Thu</span>
+                <span class="text-slate-500 font-bold text-[11px]">Fri</span>
+                <span class="text-slate-500 font-bold text-[11px]">Sat</span>
+                <span class="text-slate-500 font-bold text-[11px]">Sun</span>
+            </div>
+            <div class="grid grid-cols-7 gap-1.5" id="monthly-grid-container">
+                <!-- Dynamic calendar dates -->
+            </div>
+        </div>
+
+        <!-- Stats/Overviews Card -->
+        <div class="grid sm:grid-cols-3 gap-4">
+            <div class="bg-slate-900 border border-slate-800 rounded-xl p-4 text-center">
+                <span class="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">7-Day Consistency</span>
+                <strong class="text-2xl font-black text-cyan-400 block mt-1" id="stat-consistency">0%</strong>
+                <span class="text-[9px] text-slate-400">Completed workouts over past week</span>
+            </div>
+            <div class="bg-slate-900 border border-slate-800 rounded-xl p-4 text-center">
+                <span class="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">Avg Backpack Load</span>
+                <strong class="text-2xl font-black text-emerald-400 block mt-1" id="stat-avg-load">0 Books</strong>
+                <span class="text-[9px] text-slate-400">Mean overload across logged entries</span>
+            </div>
+            <div class="bg-slate-900 border border-slate-800 rounded-xl p-4 text-center flex flex-col justify-between">
+                <div>
+                    <span class="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">Erase All Data</span>
+                </div>
+                <button onclick="triggerClearHistory()" class="mt-2 text-[10px] bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/20 text-rose-400 py-1 rounded-lg transition font-medium">
+                    Wipe History Logs
+                </button>
+            </div>
+        </div>
+    </section>
+
+</main>
+
+<!-- Custom script elements -->
+<script>
+    
+    // Static layout structures
+    const workoutData = {
+        A: {
+            title: "Workout A: Push & Legs (Shoulders Focus) [Rest: 90s]",
+            desc: "Broad shoulders & leg support to build V-Taper posture.",
+            exercises: [
+                { name: "Pike Push-ups", sets: 3, target: "To Failure", desc: "For broad shoulders. Rest exactly 90s between sets.", backpack: false },
+                { name: "Backpack Front Squats", sets: 3, target: "10-15 reps", desc: "Hug loaded bag closely to chest. Rest 90s.", backpack: true },
+                { name: "Standard Push-ups", sets: 3, target: "To Failure", desc: "Place bag on back if bodyweight feels trivial. Rest 90s.", backpack: true },
+                { name: "Backpack Lunges", sets: 3, target: "10 reps / leg", desc: "Step forward keeping standard upright core. Rest 90s.", backpack: true },
+                { name: "Plank", sets: 3, target: "Max Hold", desc: "Squeeze abs tight. Keep body perfectly level. Rest 90s.", backpack: false }
+            ]
+        },
+        B: {
+            title: "Workout B: Pull & Core (V-Taper Back Focus) [Rest: 90s]",
+            desc: "Focusing heavily on building wide lats & core stabilization.",
+            exercises: [
+                { name: "Pull-ups / Inverted Table Rows", sets: 3, target: "To Failure", desc: "The ultimate V-Taper widener. Rest 90s.", backpack: false },
+                { name: "Backpack Bent-Over Rows", sets: 4, target: "10-12 reps", desc: "Hinge forward from hips, pull weighted bag to abs. Rest 90s.", backpack: true },
+                { name: "Backpack Overhead Press", sets: 3, target: "8-12 reps", desc: "Drive loaded bag completely overhead. Rest 90s.", backpack: true },
+                { name: "Backpack Romanian Deadlifts", sets: 3, target: "12 reps", desc: "Hinge spine backward. Feel the hamstrings stretch. Rest 90s.", backpack: true },
+                { name: "Lying Leg Raises", sets: 3, target: "To Failure", desc: "Slow lowering control to target lower abs. Rest 90s.", backpack: false }
+            ]
+        }
+    };
+
+    const defaultWeeklyTemplate = [
+        { day: "Monday", activity: "A" },
+        { day: "Tuesday", activity: "Cardio" },
+        { day: "Wednesday", activity: "B" },
+        { day: "Thursday", activity: "none" },
+        { day: "Friday", activity: "A" },
+        { day: "Saturday", activity: "Cardio" },
+        { day: "Sunday", activity: "none" }
+    ];
+
+    const defaultMealsTemplate = [
+        { id: 1, name: "Breakfast (Pre-school)", time: "5:15 AM", menu: "2-3 Whole Eggs + 1 portion of Rice" },
+        { id: 2, name: "Lunch (At School)", time: "12:00 PM", menu: "1.5 pieces Chicken + 1 portion of Rice + Greens" },
+        { id: 3, name: "Pre-Workout Energy Boost", time: "3:30 PM", menu: "Yogurt OR 1 Boiled Egg" },
+        { id: 4, name: "Dinner (Post-Workout Recovery)", time: "6:30 PM", menu: "1.5 pieces Chicken + Rice + heavy portion of Vegetables" }
+    ];
+
+    // GitHub hosting dynamic key namespace resolution to prevent collision across repos
+    const storageKey = `ottermode_companion_system:${window.location.pathname}`;
+
+    // Active State
+    let state = {
+        schedule: JSON.parse(JSON.stringify(defaultWeeklyTemplate)),
+        dailyLogs: {}, // Key: YYYY-MM-DD
+        selectedDate: "" // YYYY-MM-DD format
+    };
+
+    // UI Date tracking for monthly grid navigation
+    let calendarYear = 2026;
+    let calendarMonth = 5; // June (0-indexed: 5 is June)
+
+    // Timer Variables
+    let timerInterval = null;
+    let timerSeconds = 90;
+    let timerRunning = false;
+
+    // Get date string (YYYY-MM-DD) helper using timezone-aware offset
+    function getLocalDateString(d = new Date()) {
+        const year = d.getFullYear();
+        const month = String(d.getMonth() + 1).padStart(2, '0');
+        const day = String(d.getDate()).padStart(2, '0');
+        return `${year}-${month}-${day}`;
+    }
+
+    // Initialize empty logs for a day if untracked yet
+    function ensureDayLogExists(dateStr) {
+        if (!state.dailyLogs[dateStr]) {
+            const dateObj = parseDateString(dateStr);
+            const dayIndex = (dateObj.getDay() + 6) % 7; // Convert standard Sun-Sat index to Mon-Sun index (0=Mon, 6=Sun)
+            const scheduledType = state.schedule && state.schedule[dayIndex] ? state.schedule[dayIndex].activity : "none";
+
+            state.dailyLogs[dateStr] = {
+                workoutDone: scheduledType, // Default to whatever schedule suggests
+                backpackLoad: 10, // Default to 10 kg
+                meals: defaultMealsTemplate.map(m => ({ ...m, done: false })),
+                waterIntake: 0,
+                stapleVeg: false,
+                stapleYogurt: false,
+                completedSets: {}, // Maps "exerciseName" to array of booleans [true, false, false...]
+                notes: "" // Notes section for this day
+            };
+        }
+        // Ensure properties exist on old schemas
+        if (state.dailyLogs[dateStr] && typeof state.dailyLogs[dateStr].notes === 'undefined') {
+            state.dailyLogs[dateStr].notes = "";
+        }
+    }
+
+    // Converts YYYY-MM-DD string accurately to Date object
+    function parseDateString(dateStr) {
+        const parts = dateStr.split('-');
+        return new Date(parseInt(parts), parseInt(parts) - 1, parseInt(parts));
+    }
+
+    // State Save and Read
+    function saveToLocalStorage() {
+        localStorage.setItem(storageKey, JSON.stringify(state));
+    }
+
+    function loadFromLocalStorage() {
+        const raw = localStorage.getItem(storageKey);
+        if (raw) {
+            try {
+                const parsed = JSON.parse(raw);
+                // Ensure migrations are solid
+                if (parsed.schedule) state.schedule = parsed.schedule;
+                if (parsed.dailyLogs) state.dailyLogs = parsed.dailyLogs;
+            } catch (e) {
+                console.error("Localstorage recovery failure:", e);
+            }
+        }
+        
+        // Set default loaded date to local active date
+        state.selectedDate = getLocalDateString();
+        const parsedSelected = parseDateString(state.selectedDate);
+        calendarYear = parsedSelected.getFullYear();
+        calendarMonth = parsedSelected.getMonth();
+    }
+
+    // Modern Toast notification logic
+    function triggerToast(title, desc, type = "info") {
+        const container = document.getElementById('toast-container');
+        const toast = document.createElement('div');
+        toast.className = `p-4 rounded-xl border shadow-lg flex gap-3 items-start pointer-events-auto transition duration-300 transform translate-y-2 opacity-0 bg-slate-900 border-slate-800`;
+        
+        let icon = `<i data-lucide="info" class="w-5 h-5 text-cyan-400"></i>`;
+        if (type === "success") {
+            icon = `<i data-lucide="check-circle" class="w-5 h-5 text-emerald-400"></i>`;
+        } else if (type === "warning") {
+            icon = `<i data-lucide="alert-triangle" class="w-5 h-5 text-amber-400"></i>`;
+        }
+
+        toast.innerHTML = `
+            <div>${icon}</div>
+            <div class="flex-1">
+                <h5 class="text-xs font-bold text-slate-200">${title}</h5>
+                <p class="text-[10px] text-slate-400 mt-0.5 leading-relaxed">${desc}</p>
+            </div>
+        `;
+
+        container.appendChild(toast);
+        lucide.createIcons();
+
+        // Animate trigger
+        setTimeout(() => {
+            toast.classList.remove('translate-y-2', 'opacity-0');
+        }, 10);
+
+        // Automatic dismissal
+        setTimeout(() => {
+            toast.classList.add('opacity-0', 'translate-y-[-10px]');
+            setTimeout(() => toast.remove(), 300);
+        }, 3500);
+    }
+
+    // Sleek replacement for window.confirm
+    let activeConfirmCallback = null;
+    function showConfirmDialog(title, message, callback) {
+        const modal = document.getElementById('confirm-modal');
+        const box = document.getElementById('confirm-box');
+        document.getElementById('confirm-title').innerText = title;
+        document.getElementById('confirm-msg').innerText = message;
+        
+        modal.classList.remove('hidden');
+        modal.classList.add('flex');
+        
+        setTimeout(() => {
+            box.classList.remove('scale-95');
+            box.classList.add('scale-100');
+        }, 10);
+
+        activeConfirmCallback = callback;
+    }
+
+    function closeConfirmDialog() {
+        const modal = document.getElementById('confirm-modal');
+        const box = document.getElementById('confirm-box');
+        box.classList.remove('scale-100');
+        box.classList.add('scale-95');
+        setTimeout(() => {
+            modal.classList.add('hidden');
+            modal.classList.remove('flex');
+        }, 150);
+        activeConfirmCallback = null;
+    }
+
+    // Core Date switching coordinator
+    function changeActiveDate(newDateStr) {
+        state.selectedDate = newDateStr;
+        ensureDayLogExists(newDateStr);
+        saveToLocalStorage();
+        
+        // Sync calendar year/month to match selected date view
+        const parsed = parseDateString(newDateStr);
+        calendarYear = parsed.getFullYear();
+        calendarMonth = parsed.getMonth();
+
+        // Reset the timer when switching dates to prevent confusion
+        resetTimer();
+
+        updateDateUI();
+        renderActiveTabContent();
+    }
+
+    function jumpToToday() {
+        changeActiveDate(getLocalDateString());
+        triggerToast("Today Selected", "Successfully switched to today's records.", "success");
+    }
+
+    function selectCustomDate(val) {
+        if (val) {
+            changeActiveDate(val);
+            triggerToast("Date Shifted", `Switched to viewing logs for: ${val}`, "info");
+        }
+    }
+
+    // Build the top interactive date ribbon
+    function updateDateUI() {
+        // Update the display text top-right
+        const activeDisplay = document.getElementById('active-day-display');
+        const customPicker = document.getElementById('custom-date-picker');
+        customPicker.value = state.selectedDate;
+
+        const todayStr = getLocalDateString();
+        const dateObj = parseDateString(state.selectedDate);
+
+        const options = { weekday: 'short', month: 'short', day: 'numeric' };
+        let displayLabel = dateObj.toLocaleDateString('en-US', options);
+        if (state.selectedDate === todayStr) {
+            displayLabel = "Today (" + displayLabel + ")";
+        }
+        activeDisplay.innerText = displayLabel;
+
+        // Generate ribbon (showing 3 days before up to 3 days after current selection)
+        const ribbon = document.getElementById('date-ribbon');
+        ribbon.innerHTML = '';
+
+        const centerDate = parseDateString(state.selectedDate);
+        
+        for (let i = -3; i <= 3; i++) {
+            const iterDate = new Date(centerDate);
+            iterDate.setDate(centerDate.getDate() + i);
+            const iterStr = getLocalDateString(iterDate);
+            
+            const isSelected = iterStr === state.selectedDate;
+            const isToday = iterStr === todayStr;
+
+            ensureDayLogExists(iterStr);
+            const iterLog = state.dailyLogs[iterStr];
+
+            // Determine dot indicators (Workout completion & water level)
+            let workoutIndicator = '';
+            if (iterLog.workoutDone === 'A' || iterLog.workoutDone === 'B') {
+                workoutIndicator = '<span class="w-1.5 h-1.5 rounded-full bg-cyan-400 block" title="Workout Session"></span>';
+            } else if (iterLog.workoutDone === 'Cardio') {
+                workoutIndicator = '<span class="w-1.5 h-1.5 rounded-full bg-sky-400 block" title="Cardio Session"></span>';
+            } else {
+                workoutIndicator = '<span class="w-1.5 h-1.5 rounded-full bg-slate-800 block"></span>';
+            }
+
+            let dietCompletion = 0;
+            if (iterLog.meals && iterLog.meals.length > 0) {
+                const doneMeals = iterLog.meals.filter(m => m.done).length;
+                dietCompletion = (doneMeals / iterLog.meals.length) * 100;
+            }
+
+            const dayName = iterDate.toLocaleDateString('en-US', { weekday: 'short' });
+            const dayNum = iterDate.getDate();
+
+            const capsule = document.createElement('button');
+            capsule.onclick = () => changeActiveDate(iterStr);
+            capsule.className = `flex-shrink-0 flex flex-col items-center justify-between p-2 rounded-xl border transition min-w-[55px] text-center select-none ${
+                isSelected ? 
+                'bg-gradient-to-b from-cyan-950 to-slate-900 border-cyan-500 text-cyan-200 shadow-md shadow-cyan-500/5 scale-105' : 
+                isToday ? 'bg-slate-900/60 border-slate-700 text-slate-200' : 'bg-slate-950/60 border-slate-800/80 text-slate-400 hover:border-slate-700 hover:bg-slate-900'
+            }`;
+
+            capsule.innerHTML = `
+                <span class="text-[9px] font-bold uppercase tracking-wider block opacity-75">${dayName}</span>
+                <span class="text-sm font-black font-mono block my-0.5">${dayNum}</span>
+                <div class="flex gap-1 items-center justify-center h-2 mt-0.5">
+                    ${workoutIndicator}
+                    <span class="w-1.5 h-1.5 rounded-full ${iterLog.waterIntake >= 12 ? 'bg-blue-400' : 'bg-slate-800'}" title="Water Target"></span>
+                    <span class="w-1.5 h-1.5 rounded-full ${dietCompletion >= 100 ? 'bg-emerald-400' : 'bg-slate-800'}" title="Diet Checked"></span>
+                </div>
+            `;
+
+            ribbon.appendChild(capsule);
+        }
+    }
+
+    // Switch application screens
+    let currentActiveTab = 'tracker';
+    function switchTab(tabId) {
+        currentActiveTab = tabId;
+        document.querySelectorAll('.tab-content').forEach(tab => tab.classList.add('hidden'));
+        document.getElementById(`tab-${tabId}`).classList.remove('hidden');
+
+        document.querySelectorAll('.tab-btn').forEach(btn => {
+            btn.className = "tab-btn flex flex-col items-center justify-center gap-1 py-2 px-1 rounded-xl text-xs font-bold transition-all duration-200 text-slate-400 hover:text-slate-200 hover:bg-slate-900/50";
+        });
+
+        const activeBtn = document.getElementById(`btn-tab-${tabId}`);
+        if (activeBtn) {
+            activeBtn.className = "tab-btn flex flex-col items-center justify-center gap-1 py-2 px-1 rounded-xl text-xs font-bold transition-all duration-200 bg-gradient-to-r from-cyan-500 to-emerald-500 text-slate-950 shadow-md";
+        }
+
+        renderActiveTabContent();
+    }
+
+    // Direct dispatcher based on current active view state
+    function renderActiveTabContent() {
+        const dateStr = state.selectedDate;
+        ensureDayLogExists(dateStr);
+        const log = state.dailyLogs[dateStr];
+
+        if (currentActiveTab === 'tracker') {
+            renderTrackerTab(log);
+        } else if (currentActiveTab === 'schedule') {
+            renderScheduleTab();
+        } else if (currentActiveTab === 'meals') {
+            renderDietTab(log);
+        } else if (currentActiveTab === 'history') {
+            renderHistoryTab();
+        }
+        lucide.createIcons();
+    }
+
+    // ================= WORKOUT TRACKER TAB RENDERING =================
+    function renderTrackerTab(log) {
+        const workoutSelector = document.getElementById('workout-select');
+        workoutSelector.value = log.workoutDone || "none";
+
+        // Sync backpack elements using kilograms and approximate book count
+        const currentLoad = log.backpackLoad || 10;
+        document.getElementById('backpack-load').value = currentLoad;
+        
+        const bookCount = Math.round(currentLoad / 1.2);
+        document.getElementById('load-label').innerText = `${currentLoad} kg (~${bookCount} ${bookCount === 1 ? "book" : "books"})`;
+
+        // Look up weekday suggested schedule
+        const dateObj = parseDateString(state.selectedDate);
+        const dayIndex = (dateObj.getDay() + 6) % 7;
+        const scheduledType = state.schedule && state.schedule[dayIndex] ? state.schedule[dayIndex].activity : "none";
+        
+        let scheduledLabel = "Rest / Study (No session)";
+        if (scheduledType === "A") scheduledLabel = "Workout A (Push & Legs)";
+        else if (scheduledType === "B") scheduledLabel = "Workout B (Pull & Core)";
+        else if (scheduledType === "Cardio") scheduledLabel = "Cardio Run/Jog";
+
+        document.getElementById('scheduled-activity-badge').innerText = scheduledLabel;
+
+        const workoutControls = document.getElementById('workout-meta-controls');
+        const block = document.getElementById('active-session-block');
+        block.innerHTML = '';
+
+        // Sync notes section textarea
+        document.getElementById('daily-notes-input').value = log.notes || "";
+
+        if (log.workoutDone === 'none' || !log.workoutDone) {
+            // Rest Day UI
+            workoutControls.classList.add('hidden');
+            block.innerHTML = `
+                <div class="bg-slate-900 border border-slate-800 rounded-2xl p-8 text-center space-y-3">
+                    <div class="w-12 h-12 bg-amber-500/10 border border-amber-500/20 text-amber-400 rounded-2xl flex items-center justify-center mx-auto">
+                        <i data-lucide="coffee" class="w-6 h-6"></i>
+                    </div>
+                    <h3 class="font-bold text-base">Rest & Recovery Focused Day</h3>
+                    <p class="text-xs text-slate-400 max-w-sm mx-auto leading-relaxed">No rigorous resistance workouts are set. Focus on studying, resting joints, and staying hydrated. Switch the dropdown if you decided to train today!</p>
+                </div>
+            `;
+        } else if (log.workoutDone === 'Cardio') {
+            // Cardio Day UI
+            workoutControls.classList.add('hidden');
+            block.innerHTML = `
+                <div class="bg-slate-900 border border-slate-800 rounded-2xl p-8 text-center space-y-4">
+                    <div class="w-12 h-12 bg-sky-500/10 border border-sky-500/20 text-sky-400 rounded-2xl flex items-center justify-center mx-auto">
+                        <i data-lucide="heart" class="w-6 h-6"></i>
+                    </div>
+                    <div>
+                        <h3 class="font-bold text-base">Zone 2 Cardiovascular Aerobic Day</h3>
+                        <p class="text-xs text-slate-400 mt-1 max-w-md mx-auto leading-relaxed">Perform 45-60 minutes of low-intensity steady state (LISS) training. Treadmill brisk walking on incline or simple outdoor jogging. Keep heart-rate conversational.</p>
+                    </div>
+                    <div class="pt-2">
+                        <button onclick="toggleCardioComplete()" class="px-5 py-2.5 rounded-xl font-bold text-xs border transition ${
+                            log.cardioCompleted ? 
+                            'bg-sky-500 text-slate-950 border-sky-500 shadow-md shadow-sky-500/10' : 
+                            'bg-slate-950 border-slate-800 text-slate-300 hover:border-slate-700'
+                        }">
+                            ${log.cardioCompleted ? '✓ Cardio Completed Today' : 'Mark Cardio Run as Completed'}
+                        </button>
+                    </div>
+                </div>
+            `;
+        } else {
+            // Workout A or B
+            workoutControls.classList.remove('hidden');
+            const workoutInfo = workoutData[log.workoutDone];
+
+            // Header Info banner
+            const infoCard = document.createElement('div');
+            infoCard.className = "bg-slate-900/60 p-4 rounded-xl border border-slate-800/80 flex items-center gap-3";
+            infoCard.innerHTML = `
+                <div class="p-2 bg-cyan-500/10 text-cyan-400 rounded-lg">
+                    <i data-lucide="info" class="w-5 h-5"></i>
+                </div>
+                <div>
+                    <h4 class="text-xs font-bold text-slate-200">${workoutInfo.title}</h4>
+                    <p class="text-[10px] text-slate-400 leading-relaxed mt-0.5">${workoutInfo.desc}</p>
+                </div>
+            `;
+            block.appendChild(infoCard);
+
+            // Build each exercise row
+            workoutInfo.exercises.forEach(ex => {
+                const trackingKey = ex.name;
+                // Ensure tracking completed set arrays exist
+                if (!log.completedSets[trackingKey]) {
+                    log.completedSets[trackingKey] = Array(ex.sets).fill(false);
+                }
+                const activeSets = log.completedSets[trackingKey];
+
+                let setButtons = '';
+                for (let s = 0; s < ex.sets; s++) {
+                    const done = activeSets[s] === true;
+                    setButtons += `
+                        <button onclick="toggleSetStatus('${trackingKey}', ${s})" class="w-10 h-10 rounded-lg border-2 font-bold text-xs transition flex flex-col items-center justify-center select-none ${
+                            done ? 
+                            'border-cyan-500 bg-cyan-500/20 text-cyan-400' : 
+                            'border-slate-800 bg-slate-950 text-slate-500 hover:border-slate-700 hover:text-slate-400'
+                        }">
+                            <span class="text-[8px] opacity-75 font-normal">SET</span>
+                            <span>${s+1}</span>
+                        </button>
+                    `;
+                }
+
+                const estExBooks = Math.round(currentLoad / 1.2);
+
+                const row = document.createElement('div');
+                row.className = "bg-slate-900 border border-slate-800 rounded-2xl p-4 flex flex-col md:flex-row items-stretch md:items-center justify-between gap-4";
+                row.innerHTML = `
+                    <div class="space-y-1">
+                        <div class="flex items-center gap-2">
+                            <h3 class="font-bold text-sm text-slate-100">${ex.name}</h3>
+                            ${ex.backpack ? `<span class="bg-cyan-500/10 text-cyan-400 border border-cyan-500/15 text-[9px] uppercase font-bold px-1.5 py-0.5 rounded-md">Backpack: ${currentLoad} kg (~${estExBooks} bks)</span>` : ''}
+                        </div>
+                        <p class="text-[11px] text-slate-400 max-w-md leading-relaxed">${ex.desc}</p>
+                        <span class="text-[10px] text-emerald-400 font-semibold block">Prescription: ${ex.sets} sets × ${ex.target}</span>
+                    </div>
+                    <div class="flex items-center gap-1.5 self-center md:self-auto bg-slate-950/80 p-1.5 rounded-xl border border-slate-850">
+                        ${setButtons}
+                    </div>
+                `;
+                block.appendChild(row);
+            });
+        }
+    }
+
+    // Daily Journal notes tracking
+    function saveDailyNotes(val) {
+        const dateStr = state.selectedDate;
+        ensureDayLogExists(dateStr);
+        state.dailyLogs[dateStr].notes = val;
+        saveToLocalStorage();
+    }
+
+    // Active Rest Timer functionality
+    function toggleTimer() {
+        const toggleBtn = document.getElementById('timer-toggle-btn');
+        
+        if (timerRunning) {
+            clearInterval(timerInterval);
+            timerRunning = false;
+            toggleBtn.innerText = "Start";
+            toggleBtn.className = "bg-cyan-500 hover:bg-cyan-600 text-slate-950 text-xs font-bold px-3 py-1.5 rounded-lg transition";
+        } else {
+            timerRunning = true;
+            toggleBtn.innerText = "Pause";
+            toggleBtn.className = "bg-rose-500 hover:bg-rose-600 text-slate-100 text-xs font-bold px-3 py-1.5 rounded-lg transition";
+            
+            timerInterval = setInterval(() => {
+                if (timerSeconds > 0) {
+                    timerSeconds--;
+                    updateTimerDisplay();
+                } else {
+                    clearInterval(timerInterval);
+                    timerRunning = false;
+                    toggleBtn.innerText = "Start";
+                    toggleBtn.className = "bg-cyan-500 hover:bg-cyan-600 text-slate-950 text-xs font-bold px-3 py-1.5 rounded-lg transition";
+                    
+                    triggerToast("Rest Interval Complete!", "Go hard on your next set!", "success");
+                    playRestCompleteAlert();
+                }
+            }, 1000);
+        }
+    }
+
+    function resetTimer() {
+        clearInterval(timerInterval);
+        timerRunning = false;
+        timerSeconds = 90;
+        updateTimerDisplay();
+        const toggleBtn = document.getElementById('timer-toggle-btn');
+        toggleBtn.innerText = "Start";
+        toggleBtn.className = "bg-cyan-500 hover:bg-cyan-600 text-slate-950 text-xs font-bold px-3 py-1.5 rounded-lg transition";
+    }
+
+    function updateTimerDisplay() {
+        const mins = String(Math.floor(timerSeconds / 60)).padStart(2, '0');
+        const secs = String(timerSeconds % 60).padStart(2, '0');
+        document.getElementById('timer-display').innerText = `${mins}:${secs}`;
+    }
+
+    // Tone synthesizer
+    function playRestCompleteAlert() {
+        try {
+            const ctx = new (window.AudioContext || window.webkitAudioContext)();
+            const osc = ctx.createOscillator();
+            const gainNode = ctx.createGain();
+            
+            osc.type = "sine";
+            osc.frequency.setValueAtTime(587.33, ctx.currentTime); // D5
+            osc.frequency.setValueAtTime(880.00, ctx.currentTime + 0.15); // A5
+            
+            gainNode.gain.setValueAtTime(0.15, ctx.currentTime);
+            gainNode.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.4);
+            
+            osc.connect(gainNode);
+            gainNode.connect(ctx.destination);
+            
+            osc.start();
+            osc.stop(ctx.currentTime + 0.45);
+        } catch (error) {
+            console.log("Acoustic synthesis not supported or blocked by permissions");
+        }
+    }
+
+    // Active Session drop-down switch
+    function changeActiveSession(val) {
+        const dateStr = state.selectedDate;
+        state.dailyLogs[dateStr].workoutDone = val;
+        
+        // Clear or reset set progress if switching
+        state.dailyLogs[dateStr].completedSets = {};
+        state.dailyLogs[dateStr].cardioCompleted = false;
+
+        saveToLocalStorage();
+        renderActiveTabContent();
+        updateDateUI();
+        
+        if (val !== "none") {
+            triggerToast("Session Initialized", `Switched logs for today to: Workout ${val}`, "success");
+        }
+    }
+
+    // Overload Adjustment controls
+    function adjustLoad(val) {
+        const input = document.getElementById('backpack-load');
+        let current = parseInt(input.value) || 0;
+        current = Math.max(0, current + val);
+        input.value = current;
+        updateLoadLabel();
+    }
+
+    function updateLoadLabel() {
+        const input = document.getElementById('backpack-load');
+        const val = parseInt(input.value) || 0;
+        const dateStr = state.selectedDate;
+        
+        state.dailyLogs[dateStr].backpackLoad = val;
+        const estBooks = Math.round(val / 1.2);
+        document.getElementById('load-label').innerText = `${val} kg (~${estBooks} ${estBooks === 1 ? 'book' : 'books'})`;
+        saveToLocalStorage();
+    }
+
+    // Individual calisthenic set markers
+    function toggleSetStatus(exerciseName, setIndex) {
+        const dateStr = state.selectedDate;
+        const setLog = state.dailyLogs[dateStr].completedSets[exerciseName];
+        
+        setLog[setIndex] = !setLog[setIndex];
+        saveToLocalStorage();
+        renderActiveTabContent();
+
+        if (setLog[setIndex]) {
+            triggerToast("Set Logged", `Completed Set ${setIndex + 1} of ${exerciseName}.`, "success");
+            // Start the 90s timer automatically to streamline flow
+            resetTimer();
+            toggleTimer();
+        }
+    }
+
+    // Mark Cardio Run Complete
+    function toggleCardioComplete() {
+        const dateStr = state.selectedDate;
+        state.dailyLogs[dateStr].cardioCompleted = !state.dailyLogs[dateStr].cardioCompleted;
+        saveToLocalStorage();
+        renderActiveTabContent();
+        updateDateUI();
+
+        if (state.dailyLogs[dateStr].cardioCompleted) {
+            triggerToast("Cardio Recorded", "Fantastic jog! Keep burning pure fat reserves.", "success");
+        }
+    }
+
+    // ================= SCHEDULE TAB RENDERING =================
+    const scheduleLabels = {
+        "A": "Workout A (Push & Legs)",
+        "B": "Workout B (Pull & Core)",
+        "Cardio": "Zone 2 Cardio Run",
+        "none": "Rest / Study Focus"
+    };
+
+    function renderScheduleTab() {
+        const container = document.getElementById('weekly-schedule-container');
+        container.innerHTML = '';
+
+        state.schedule.forEach((item, index) => {
+            let badgeColor = "bg-slate-950 text-slate-500 border border-slate-800";
+            if (item.activity === "A") badgeColor = "bg-cyan-500/10 text-cyan-400 border border-cyan-500/20";
+            else if (item.activity === "B") badgeColor = "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20";
+            else if (item.activity === "Cardio") badgeColor = "bg-sky-500/10 text-sky-400 border border-sky-500/20";
+            else if (item.activity === "none") badgeColor = "bg-amber-500/10 text-amber-400 border border-amber-500/20";
+
+            container.innerHTML += `
+                <div class="flex flex-col md:flex-row items-start md:items-center justify-between p-3.5 bg-slate-950 rounded-xl border border-slate-900/80 gap-3.5">
+                    <div class="flex items-center gap-3">
+                        <span class="text-xs font-black w-24 text-slate-300">${item.day}</span>
+                        <span class="text-[10px] px-2 py-0.5 rounded font-bold uppercase tracking-wide ${badgeColor}">${scheduleLabels[item.activity]}</span>
+                    </div>
+                    <div class="flex flex-wrap gap-1">
+                        ${Object.keys(scheduleLabels).map(opt => `
+                            <button onclick="modifyScheduleTemplate(${index}, '${opt}')" class="text-[10px] px-2 py-1 rounded-lg font-bold bg-slate-900 border border-slate-800 hover:border-slate-700 text-slate-400 transition ${item.activity === opt ? 'bg-slate-800 text-cyan-400 border-cyan-500/30 font-black' : ''}">
+                                ${scheduleLabels[opt].split(' ')}
+                            </button>
+                        `).join('')}
+                    </div>
+                </div>
+            `;
+        });
+    }
+
+    function modifyScheduleTemplate(dayIndex, option) {
+        state.schedule[dayIndex].activity = option;
+        saveToLocalStorage();
+        renderScheduleTab();
+        updateDateUI();
+        triggerToast("Schedule Updated", `${state.schedule[dayIndex].day} is now set to default: ${scheduleLabels[option]}`, "info");
+    }
+
+    // Reset weekly templates
+    function resetSchedule() {
+        showConfirmDialog(
+            "Reset Template?",
+            "This will reset your default schedule grid to initial settings. Any specific overrides already logged on custom calendar days will NOT be lost.",
+            () => {
+                state.schedule = JSON.parse(JSON.stringify(defaultWeeklyTemplate));
+                saveToLocalStorage();
+                renderScheduleTab();
+                updateDateUI();
+                triggerToast("Schedule Reset", "Your weekly layout has been reset.", "warning");
+            }
+        );
+    }
+
+    // ================= DIET LOGS TAB RENDERING =================
+    function renderDietTab(log) {
+        if (!log.meals || log.meals.length === 0) {
+            log.meals = defaultMealsTemplate.map(m => ({ ...m, done: false }));
+        }
+
+        const container = document.getElementById('meals-container');
+        container.innerHTML = '';
+
+        const totalCount = log.meals.length;
+        const completedCount = log.meals.filter(m => m.done).length;
+        const pct = totalCount > 0 ? Math.round((completedCount / totalCount) * 100) : 0;
+
+        const completionDisplay = document.getElementById('diet-completion-percentage');
+        completionDisplay.innerText = `${pct}% Eaten`;
+        if (pct >= 100) {
+            completionDisplay.className = "text-xs bg-emerald-500/10 px-2 py-0.5 rounded font-mono font-extrabold text-emerald-400 border border-emerald-500/20";
+        } else {
+            completionDisplay.className = "text-xs bg-slate-950 px-2 py-0.5 rounded font-mono font-extrabold text-slate-400";
+        }
+
+        log.meals.forEach((meal, idx) => {
+            const card = document.createElement('div');
+            card.className = `flex items-start gap-3.5 p-3.5 rounded-xl transition border cursor-pointer ${
+                meal.done ? 
+                'bg-emerald-950/[0.04] border-emerald-500/20 hover:border-emerald-500/35' : 
+                'bg-slate-950 border-slate-900 hover:border-slate-850'
+            }`;
+            card.onclick = (e) => {
+                if (e.target.tagName !== 'INPUT') {
+                    toggleMealCheck(idx);
+                }
+            };
+
+            card.innerHTML = `
+                <div class="pt-0.5 select-none">
+                    <input type="checkbox" ${meal.done ? 'checked' : ''} class="w-4 h-4 rounded border-slate-800 bg-slate-900 text-emerald-500 focus:ring-emerald-500 cursor-pointer">
+                </div>
+                <div class="space-y-1 flex-1">
+                    <div class="flex items-center justify-between gap-1">
+                        <h4 class="font-bold text-xs leading-relaxed ${meal.done ? 'text-slate-400 line-through' : 'text-slate-200'}">${meal.name}</h4>
+                        <span class="text-[9px] font-mono font-semibold bg-slate-900 px-1.5 py-0.5 rounded border border-slate-800 text-slate-400">${meal.time}</span>
+                    </div>
+                    <p class="text-[10px] text-slate-400 leading-relaxed">${meal.menu}</p>
+                </div>
+            `;
+            container.appendChild(card);
+        });
+
+        // Hydration glasses build
+        const waterDisplay = document.getElementById('water-display');
+        waterDisplay.innerText = (log.waterIntake * 0.25).toFixed(2);
+
+        const waterContainer = document.getElementById('water-glasses');
+        waterContainer.innerHTML = '';
+        for (let i = 1; i <= 12; i++) {
+            const filled = i <= log.waterIntake;
+            waterContainer.innerHTML += `
+                <button onclick="changeWaterLog(${i})" class="focus:outline-none transition transform hover:scale-110 active:scale-95 py-1 flex items-center justify-center">
+                    <i data-lucide="droplet" class="w-4.5 h-4.5 ${filled ? 'fill-blue-500 text-blue-400' : 'text-slate-800 hover:text-blue-500'}"></i>
+                </button>
+            `;
+        }
+
+        // Sync Staple elements
+        document.getElementById('staple-veg').checked = log.stapleVeg || false;
+        document.getElementById('staple-yogurt').checked = log.stapleYogurt || false;
+    }
+
+    function toggleMealCheck(idx) {
+        const dateStr = state.selectedDate;
+        const meal = state.dailyLogs[dateStr].meals[idx];
+        meal.done = !meal.done;
+        
+        saveToLocalStorage();
+        renderDietTab(state.dailyLogs[dateStr]);
+        updateDateUI();
+
+        if (meal.done) {
+            triggerToast("Meal Tracked", `Enjoyed: ${meal.name}`, "success");
+        }
+    }
+
+    function changeWaterLog(val) {
+        const dateStr = state.selectedDate;
+        const current = state.dailyLogs[dateStr].waterIntake;
+        
+        if (current === val) {
+            state.dailyLogs[dateStr].waterIntake = Math.max(0, val - 1);
+        } else {
+            state.dailyLogs[dateStr].waterIntake = val;
+        }
+
+        saveToLocalStorage();
+        renderDietTab(state.dailyLogs[dateStr]);
+        updateDateUI();
+    }
+
+    // Dynamic checks
+    function toggleStaple(type) {
+        const dateStr = state.selectedDate;
+        if (type === 'veg') {
+            state.dailyLogs[dateStr].stapleVeg = document.getElementById('staple-veg').checked;
+        } else if (type === 'yogurt') {
+            state.dailyLogs[dateStr].stapleYogurt = document.getElementById('staple-yogurt').checked;
+        }
+        saveToLocalStorage();
+        updateDateUI();
+        triggerToast("Staple Updated", "Your gut-health compliance has been saved.", "success");
+    }
+
+    // ================= MONTHLY CALENDAR GRID RENDERING =================
+    function renderHistoryTab() {
+        const months = [
+            "January", "February", "March", "April", "May", "June",
+            "July", "August", "September", "October", "November", "December"
+        ];
+        document.getElementById('calendar-month-year').innerText = `${months[calendarMonth]} ${calendarYear}`;
+
+        const container = document.getElementById('monthly-grid-container');
+        container.innerHTML = '';
+
+        // Compute first day of selected calendar month
+        const firstDay = new Date(calendarYear, calendarMonth, 1);
+        let firstDayIndex = (firstDay.getDay() + 6) % 7;
+
+        // Days count in current month
+        const daysInMonth = new Date(calendarYear, calendarMonth + 1, 0).getDate();
+
+        // Inject empty placeholders for prefix days offset
+        for (let i = 0; i < firstDayIndex; i++) {
+            const emptyCell = document.createElement('div');
+            emptyCell.className = "p-1 opacity-0 pointer-events-none";
+            container.appendChild(emptyCell);
+        }
+
+        // Build calendar day blocks
+        const todayStr = getLocalDateString();
+        for (let day = 1; day <= daysInMonth; day++) {
+            const cellDateStr = `${calendarYear}-${String(calendarMonth + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+            ensureDayLogExists(cellDateStr);
+            const dayLog = state.dailyLogs[cellDateStr];
+
+            const isViewing = cellDateStr === state.selectedDate;
+            const isRealToday = cellDateStr === todayStr;
+
+            // Color code determination
+            let blockBg = "bg-slate-900 border-slate-850 hover:bg-slate-800 text-slate-400";
+            
+            if (dayLog.workoutDone === 'A' || dayLog.workoutDone === 'B') {
+                let setsDone = 0;
+                Object.values(dayLog.completedSets).forEach(sets => {
+                    setsDone += sets.filter(s => s).length;
+                });
+                if (setsDone > 0) {
+                    blockBg = "bg-cyan-950 text-cyan-400 border-cyan-500 hover:bg-cyan-900/60";
+                } else {
+                    blockBg = "bg-slate-900 border-slate-800 text-slate-300 hover:bg-slate-850";
+                }
+            } else if (dayLog.workoutDone === 'Cardio') {
+                if (dayLog.cardioCompleted) {
+                    blockBg = "bg-sky-950 text-sky-400 border-sky-500 hover:bg-sky-900/60";
+                } else {
+                    blockBg = "bg-slate-900 border-slate-800 text-slate-300 hover:bg-slate-850";
+                }
+            } else if (dayLog.workoutDone === 'none') {
+                blockBg = "bg-amber-950/10 text-amber-500 border-amber-950/30 hover:bg-amber-950/20";
+            }
+
+            // Check if perfect diet is completed (all 4 meals checked off)
+            const doneMeals = dayLog.meals ? dayLog.meals.filter(m => m.done).length : 0;
+            const isPerfectDiet = doneMeals >= 4;
+
+            const dayBlock = document.createElement('button');
+            dayBlock.onclick = () => {
+                changeActiveDate(cellDateStr);
+                triggerToast("Date Swapped", `Reviewing: ${cellDateStr}`, "info");
+            };
+
+            dayBlock.className = `p-2.5 rounded-xl border transition flex flex-col items-center justify-between min-h-[50px] font-mono text-xs select-none relative ${blockBg} ${
+                isViewing ? 'ring-2 ring-cyan-400 ring-offset-2 ring-offset-slate-950 z-10' : ''
+            } ${
+                isRealToday ? 'ring-1 ring-emerald-500' : ''
+            } ${
+                isPerfectDiet ? 'border-2 border-emerald-500/50' : ''
+            }`;
+
+            // Add simple visual elements
+            let bottomDots = '';
+            if (dayLog.waterIntake >= 12) {
+                bottomDots += '<span class="w-1.5 h-1.5 rounded-full bg-blue-400 block" title="Water Complete"></span>';
+            }
+            if (dayLog.stapleVeg && dayLog.stapleYogurt) {
+                bottomDots += '<span class="w-1.5 h-1.5 rounded-full bg-emerald-400 block" title="Staples Complete"></span>';
+            }
+
+            dayBlock.innerHTML = `
+                <span class="font-extrabold">${day}</span>
+                <div class="flex gap-0.5 justify-center mt-1 h-1">
+                    ${bottomDots}
+                </div>
+            `;
+
+            container.appendChild(dayBlock);
+        }
+
+        // Sync metrics cards values
+        updateDashboardMetrics();
+    }
+
+    function shiftCalendarMonth(direction) {
+        calendarMonth += direction;
+        if (calendarMonth < 0) {
+            calendarMonth = 11;
+            calendarYear--;
+        } else if (calendarMonth > 11) {
+            calendarMonth = 0;
+            calendarYear++;
+        }
+        renderHistoryTab();
+    }
+
+    // Aggregate statistics from local historical records
+    function updateDashboardMetrics() {
+        const today = new Date();
+        let loggedWorkouts = 0;
+        let expectedWorkouts = 0;
+
+        for (let i = 0; i < 7; i++) {
+            const pastDate = new Date();
+            pastDate.setDate(today.getDate() - i);
+            const key = getLocalDateString(pastDate);
+            
+            if (state.dailyLogs[key]) {
+                const l = state.dailyLogs[key];
+                if (l.workoutDone === 'A' || l.workoutDone === 'B') {
+                    expectedWorkouts++;
+                    let setsDone = 0;
+                    Object.values(l.completedSets).forEach(sets => {
+                        setsDone += sets.filter(s => s).length;
+                    });
+                    if (setsDone > 0) loggedWorkouts++;
+                } else if (l.workoutDone === 'Cardio') {
+                    expectedWorkouts++;
+                    if (l.cardioCompleted) loggedWorkouts++;
+                }
+            }
+        }
+
+        const consistencyPercentage = expectedWorkouts > 0 ? Math.round((loggedWorkouts / expectedWorkouts) * 100) : 0;
+        document.getElementById('stat-consistency').innerText = `${consistencyPercentage}%`;
+
+        let totalLoad = 0;
+        let activeLogsCount = 0;
+
+        Object.values(state.dailyLogs).forEach(log => {
+            if (log.workoutDone === 'A' || log.workoutDone === 'B') {
+                let setsDone = 0;
+                Object.values(log.completedSets).forEach(sets => {
+                    setsDone += sets.filter(s => s).length;
+                });
+                if (setsDone > 0) {
+                    totalLoad += log.backpackLoad || 0;
+                    activeLogsCount++;
+                }
+            }
+        });
+
+        const avgLoad = activeLogsCount > 0 ? Math.round(totalLoad / activeLogsCount) : 0;
+        const estBooks = Math.round(avgLoad / 1.2);
+        document.getElementById('stat-avg-load').innerText = `${avgLoad} kg (~${estBooks} bks)`;
+    }
+
+    function triggerClearHistory() {
+        showConfirmDialog(
+            "Wipe Progress Logs?",
+            "This will completely erase all your logged days, checked meals, and workouts. This cannot be undone. Restores to defaults.",
+            () => {
+                localStorage.removeItem(storageKey);
+                state.dailyLogs = {};
+                state.schedule = JSON.parse(JSON.stringify(defaultWeeklyTemplate));
+                state.selectedDate = getLocalDateString();
+                ensureDayLogExists(state.selectedDate);
+                saveToLocalStorage();
+                
+                const parsed = parseDateString(state.selectedDate);
+                calendarYear = parsed.getFullYear();
+                calendarMonth = parsed.getMonth();
+
+                updateDateUI();
+                renderActiveTabContent();
+                triggerToast("History Erased", "All workout & diet databases have been completely wiped clean.", "warning");
+            }
+        );
+    }
+
+    // Window load initializer bootstrap
+    window.onload = function() {
+        loadFromLocalStorage();
+        
+        // Connect Modal cancel handlers
+        document.getElementById('confirm-cancel-btn').onclick = () => {
+            closeConfirmDialog();
+        };
+        document.getElementById('confirm-ok-btn').onclick = () => {
+            if (activeConfirmCallback) {
+                activeConfirmCallback();
+            }
+            closeConfirmDialog();
+        };
+
+        switchTab('tracker');
+        updateDateUI();
+        lucide.createIcons();
+    };
+</script>
+</body>
+</html>
